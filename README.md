@@ -1,4 +1,4 @@
-# PawnIO
+# PawnIOLib
 
 Library and tooling source. For binary releases, see [PawnIO.Releases](https://github.com/namazso/PawnIO.Releases)
 
