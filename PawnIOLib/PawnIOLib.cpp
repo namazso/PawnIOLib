@@ -30,6 +30,11 @@ extern "C" __declspec(dllimport) void RtlCopyMemory(
   size_t Length
 );
 
+PAWNIOAPI pawnio_version(PULONG version) {
+  *version = 0x00010000; // 1.0
+  return S_OK;
+}
+
 PAWNIOAPI pawnio_open(PHANDLE handle) {
   *handle = nullptr;
   UNICODE_STRING ustr{};

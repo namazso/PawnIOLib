@@ -26,6 +26,12 @@
 
 #define PAWNIOAPI EXTERN_C PAWNIO_EXPORT HRESULT STDAPICALLTYPE
 
+/// Get PawnIOLib version.
+///
+/// @p version A pointer to a ULONG which receives the version.
+/// @return A HRESULT.
+PAWNIOAPI pawnio_version(PULONG version);
+
 /// Open a PawnIO executor.
 ///
 /// @p handle A handle to the executor, or NULL.
