@@ -197,8 +197,7 @@ int do_interactive(const char* amx, const char* key) {
         out_buf.resize(ret_size);
         for (auto v : out_buf)
           printf(
-            "%016llX %20lld %c%c%c%c%c%c%c%c\n",
-            v,
+            "%016llX %c%c%c%c%c%c%c%c %20lld %f (%f %f)\n",
             v,
             printable((char)((v >> 0) & 0xFF)),
             printable((char)((v >> 8) & 0xFF)),
@@ -207,7 +206,11 @@ int do_interactive(const char* amx, const char* key) {
             printable((char)((v >> 32) & 0xFF)),
             printable((char)((v >> 40) & 0xFF)),
             printable((char)((v >> 48) & 0xFF)),
-            printable((char)((v >> 56) & 0xFF))
+            printable((char)((v >> 56) & 0xFF)),
+            v,
+            std::bit_cast<double>(v),
+            std::bit_cast<float>((uint32_t)v),
+            std::bit_cast<float>((uint32_t)(v >> 32))
           );
       }
     }
