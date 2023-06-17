@@ -53,7 +53,7 @@ PAWNIOAPI pawnio_open(PHANDLE handle) {
     0
   );
   *handle = h;
-  return HRESULT_FROM_NT(status);
+  return HRESULT_FROM_WIN32(RtlNtStatusToDosError(status));
 }
 
 PAWNIOAPI pawnio_load(HANDLE handle, const UCHAR* blob, SIZE_T size) {
@@ -70,7 +70,7 @@ PAWNIOAPI pawnio_load(HANDLE handle, const UCHAR* blob, SIZE_T size) {
     nullptr,
     0
   );
-  return HRESULT_FROM_NT(status);
+  return HRESULT_FROM_WIN32(RtlNtStatusToDosError(status));
 }
 
 PAWNIOAPI pawnio_execute(
@@ -109,11 +109,11 @@ PAWNIOAPI pawnio_execute(
     *return_size = iosb.Information / sizeof(*out);
   }
   HeapFree(heap, 0, p);
-  return HRESULT_FROM_NT(status);
+  return HRESULT_FROM_WIN32(RtlNtStatusToDosError(status));
 }
 
 PAWNIOAPI pawnio_close(HANDLE handle) {
-  return HRESULT_FROM_NT(NtClose(handle));
+  return HRESULT_FROM_WIN32(RtlNtStatusToDosError(NtClose(handle)));
 }
 
 extern "C" BOOL WINAPI DllEntry(HINSTANCE, DWORD, LPVOID) {
