@@ -1,6 +1,6 @@
 # PawnIOLib
 
-Library and tooling source. For binary releases, see [PawnIO.Releases](https://github.com/namazso/PawnIO.Releases)
+Library and tooling source. For downloads please see [pawnio.eu](https://pawnio.eu).
 
 ## License
 
