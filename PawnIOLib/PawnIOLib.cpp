@@ -31,7 +31,7 @@ extern "C" __declspec(dllimport) void RtlCopyMemory(
 );
 
 PAWNIOAPI pawnio_version(PULONG version) {
-  *version = 0x00010000; // 1.0
+  *version = 0x00020000; // 2.0.0
   return S_OK;
 }
 

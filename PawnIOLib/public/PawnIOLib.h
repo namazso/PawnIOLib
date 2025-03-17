@@ -28,7 +28,7 @@
 
 /// Get PawnIOLib version.
 ///
-/// @p version A pointer to a ULONG which receives the version.
+/// @p version A pointer to a ULONG which receives the version as (major << 16) | (minor << 8) | patch
 /// @return A HRESULT.
 PAWNIOAPI pawnio_version(PULONG version);
 
