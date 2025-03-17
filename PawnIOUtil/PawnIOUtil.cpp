@@ -84,17 +84,19 @@ static std::vector<uint8_t> get_as_blob(const char* maybe_amx, const char* key) 
     exit(1);
   }
 
+  std::vector<uint8_t> signature{};
   if (input[4] != 0xE1 || input[5] != 0xF1) {
     const auto sigsize = (uint32_t)input[0] | ((uint32_t)input[1] << 8) | ((uint32_t)input[2] << 16) | ((uint32_t)input[3] << 24);
     if (input.size() < sigsize + 4 + 6 || input[4 + sigsize + 4] != 0xE1 || input[4 + sigsize + 5] != 0xF1) {
       fprintf(stderr, "AMX input corrupt (maybe wrong cell size?)\n");
       exit(1);
     }
+    signature = {input.begin() + 4 , input.begin() + 4 + sigsize};
     input = {input.begin() + 4 + sigsize, input.end()};
   }
 
-  std::vector<uint8_t> signature{};
   if (!pem.empty()) {
+    signature = {};
     auto ret = sign(pem.c_str(), input.data(), input.size(), signature);
     if (ret != ERROR_SUCCESS) {
       fprintf(stderr, "signing failed: %lu\n", ret);
