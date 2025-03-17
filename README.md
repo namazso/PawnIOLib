@@ -5,7 +5,7 @@ Library and tooling source. For downloads please see [pawnio.eu](https://pawnio.
 ## License
 
     PawnIOLib - Library and tooling source to be used with PawnIO.
-    Copyright (C) 2023  namazso <admin@namazso.eu>
+    Copyright (C) 2025  namazso <admin@namazso.eu>
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
