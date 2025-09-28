@@ -106,9 +106,24 @@ static NTSTATUS synchronous_ioctl(
   return status;
 }
 
+static HRESULT nt_to_hresult(NTSTATUS status) {
+  return HRESULT_FROM_WIN32(RtlNtStatusToDosError(status));
+}
+
+static BOOL nt_to_win32(NTSTATUS status) {
+  if (!NT_SUCCESS(status)) {
+    SetLastError(RtlNtStatusToDosError(status));
+    return FALSE;
+  }
+  return TRUE;
+}
+
 PAWNIOAPI pawnio_version(PULONG version) {
-  *version = 0x00020000; // 2.0.0
-  return S_OK;
+  return nt_to_hresult(pawnio_version_nt(version));
+}
+
+PAWNIOWINAPI pawnio_version_win32(PULONG version) {
+  return nt_to_win32(pawnio_version_nt(version));
 }
 
 PAWNIONTAPI pawnio_version_nt(PULONG version) {
@@ -117,7 +132,11 @@ PAWNIONTAPI pawnio_version_nt(PULONG version) {
 }
 
 PAWNIOAPI pawnio_open(PHANDLE handle) {
-  return HRESULT_FROM_WIN32(RtlNtStatusToDosError(pawnio_open_nt(handle)));
+  return nt_to_hresult(pawnio_open_nt(handle));
+}
+
+PAWNIOWINAPI pawnio_open_win32(PHANDLE handle) {
+  return nt_to_win32(pawnio_open_nt(handle));
 }
 
 PAWNIONTAPI pawnio_open_nt(PHANDLE handle) {
@@ -139,7 +158,11 @@ PAWNIONTAPI pawnio_open_nt(PHANDLE handle) {
 }
 
 PAWNIOAPI pawnio_load(HANDLE handle, const UCHAR* blob, SIZE_T size) {
-  return HRESULT_FROM_WIN32(RtlNtStatusToDosError(pawnio_load_nt(handle, blob, size)));
+  return nt_to_hresult(pawnio_load_nt(handle, blob, size));
+}
+
+PAWNIOWINAPI pawnio_load_win32(HANDLE handle, const UCHAR* blob, SIZE_T size) {
+  return nt_to_win32(pawnio_load_nt(handle, blob, size));
 }
 
 PAWNIONTAPI pawnio_load_nt(HANDLE handle, const UCHAR* blob, SIZE_T size) {
@@ -163,8 +186,19 @@ PAWNIOAPI pawnio_execute(
   SIZE_T out_size,
   PSIZE_T return_size
 ) {
-  const auto status = pawnio_execute_nt(handle, name, in, in_size, out, out_size, return_size);
-  return HRESULT_FROM_WIN32(RtlNtStatusToDosError(status));
+  return nt_to_hresult(pawnio_execute_nt(handle, name, in, in_size, out, out_size, return_size));
+}
+
+PAWNIOWINAPI pawnio_execute_win32(
+  HANDLE handle,
+  PCSTR name,
+  const ULONG64* in,
+  SIZE_T in_size,
+  PULONG64 out,
+  SIZE_T out_size,
+  PSIZE_T return_size
+) {
+  return nt_to_win32(pawnio_execute_nt(handle, name, in, in_size, out, out_size, return_size));
 }
 
 static constexpr auto FN_NAME_LENGTH = 32u;
@@ -245,7 +279,42 @@ PAWNIOAPI pawnio_execute_async(
     return S_OK;
   }
 
-  return HRESULT_FROM_WIN32(RtlNtStatusToDosError(status));
+  return nt_to_hresult(status);
+}
+
+PAWNIOWINAPI pawnio_execute_async_win32(
+  HANDLE handle,
+  PCSTR name,
+  const ULONG64* in,
+  SIZE_T in_size,
+  PULONG64 out,
+  SIZE_T out_size,
+  LPOVERLAPPED overlapped
+  ) {
+  // Partial recreation of Windows' own DeviceIoControl function
+
+  overlapped->Internal = (ULONG)STATUS_PENDING;
+
+  const auto status = pawnio_execute_async_nt(
+    handle,
+    name,
+    overlapped->hEvent,
+    nullptr,
+    (ULONG_PTR)overlapped->hEvent & 1 ? nullptr : overlapped,
+    &overlapped->Internal,
+    in,
+    in_size,
+    out,
+    out_size
+  );
+
+  if (NT_SUCCESS(status) && status != STATUS_PENDING) {
+    return TRUE;
+  }
+
+  // We need to do this for STATUS_PENDING too, even though it isn't an error.
+  SetLastError(RtlNtStatusToDosError(status));
+  return FALSE;
 }
 
 PAWNIONTAPI pawnio_execute_async_nt(
@@ -300,7 +369,11 @@ PAWNIONTAPI pawnio_execute_async_nt(
 }
 
 PAWNIOAPI pawnio_close(HANDLE handle) {
-  return HRESULT_FROM_WIN32(RtlNtStatusToDosError(pawnio_close_nt(handle)));
+  return nt_to_hresult(pawnio_close_nt(handle));
+}
+
+PAWNIOWINAPI pawnio_close_win32(HANDLE handle) {
+  return nt_to_win32(pawnio_close_nt(handle));
 }
 
 PAWNIONTAPI pawnio_close_nt(HANDLE handle) {
