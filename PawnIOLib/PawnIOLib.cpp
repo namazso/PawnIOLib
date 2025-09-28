@@ -15,6 +15,10 @@
 // License along with this library; if not, write to the Free Software
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
+#include <ntstatus.h>
+
+#define WIN32_NO_STATUS
+
 #include <windows.h>
 
 #include <winternl.h>
@@ -23,11 +27,11 @@
 
 #include "ioctl.h"
 
-#undef RtlCopyMemory
-extern "C" __declspec(dllimport) void RtlCopyMemory(
-  void* Destination,
-  const void* Source,
-  size_t Length
+#undef RtlMoveMemory
+EXTERN_C NTSYSAPI VOID NTAPI RtlMoveMemory(
+  VOID UNALIGNED* Destination,
+  CONST VOID UNALIGNED* Source,
+  SIZE_T Length
 );
 
 PAWNIOAPI pawnio_version(PULONG version) {
@@ -35,30 +39,40 @@ PAWNIOAPI pawnio_version(PULONG version) {
   return S_OK;
 }
 
+PAWNIONTAPI pawnio_version_nt(PULONG version) {
+  *version = 0x00020000; // 2.0.0
+  return STATUS_SUCCESS;
+}
+
 PAWNIOAPI pawnio_open(PHANDLE handle) {
+  return HRESULT_FROM_WIN32(RtlNtStatusToDosError(pawnio_open_nt(handle)));
+}
+
+PAWNIONTAPI pawnio_open_nt(PHANDLE handle) {
   *handle = nullptr;
   UNICODE_STRING ustr{};
   RtlInitUnicodeString(&ustr, k_device_path);
   OBJECT_ATTRIBUTES attr{};
   attr.Length = sizeof(attr);
   attr.ObjectName = &ustr;
-  HANDLE h{};
   IO_STATUS_BLOCK iosb{};
-  const auto status = NtOpenFile(
-    &h,
+  return NtOpenFile(
+    handle,
     GENERIC_READ | GENERIC_WRITE,
     &attr,
     &iosb,
     FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
     0
   );
-  *handle = h;
-  return HRESULT_FROM_WIN32(RtlNtStatusToDosError(status));
 }
 
 PAWNIOAPI pawnio_load(HANDLE handle, const UCHAR* blob, SIZE_T size) {
+  return HRESULT_FROM_WIN32(RtlNtStatusToDosError(pawnio_load_nt(handle, blob, size)));
+}
+
+PAWNIONTAPI pawnio_load_nt(HANDLE handle, const UCHAR* blob, SIZE_T size) {
   IO_STATUS_BLOCK iosb{};
-  const auto status = NtDeviceIoControlFile(
+  return NtDeviceIoControlFile(
     handle,
     nullptr,
     nullptr,
@@ -70,10 +84,22 @@ PAWNIOAPI pawnio_load(HANDLE handle, const UCHAR* blob, SIZE_T size) {
     nullptr,
     0
   );
-  return HRESULT_FROM_WIN32(RtlNtStatusToDosError(status));
 }
 
 PAWNIOAPI pawnio_execute(
+  HANDLE handle,
+  PCSTR name,
+  const ULONG64* in,
+  SIZE_T in_size,
+  PULONG64 out,
+  SIZE_T out_size,
+  PSIZE_T return_size
+) {
+  const auto status = pawnio_execute_nt(handle, name, in, in_size, out, out_size, return_size);
+  return HRESULT_FROM_WIN32(RtlNtStatusToDosError(status));
+}
+
+PAWNIONTAPI pawnio_execute_nt(
   HANDLE handle,
   PCSTR name,
   const ULONG64* in,
@@ -90,7 +116,7 @@ PAWNIOAPI pawnio_execute(
   lstrcpynA(p, name, 31);
   p[31] = 0;
   if (in_size)
-    RtlCopyMemory(p + 32, in, in_size * sizeof(*in));
+    RtlMoveMemory(p + 32, in, in_size * sizeof(*in));
 
   IO_STATUS_BLOCK iosb{};
   const auto status = NtDeviceIoControlFile(
@@ -109,11 +135,15 @@ PAWNIOAPI pawnio_execute(
     *return_size = iosb.Information / sizeof(*out);
   }
   HeapFree(heap, 0, p);
-  return HRESULT_FROM_WIN32(RtlNtStatusToDosError(status));
+  return status;
 }
 
 PAWNIOAPI pawnio_close(HANDLE handle) {
-  return HRESULT_FROM_WIN32(RtlNtStatusToDosError(NtClose(handle)));
+  return HRESULT_FROM_WIN32(RtlNtStatusToDosError(pawnio_close_nt(handle)));
+}
+
+PAWNIONTAPI pawnio_close_nt(HANDLE handle) {
+  return NtClose(handle);
 }
 
 extern "C" BOOL WINAPI DllEntry(HINSTANCE, DWORD, LPVOID) {

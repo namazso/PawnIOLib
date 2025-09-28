@@ -25,18 +25,21 @@
 #endif
 
 #define PAWNIOAPI EXTERN_C PAWNIO_EXPORT HRESULT STDAPICALLTYPE
+#define PAWNIONTAPI EXTERN_C PAWNIO_EXPORT NTSTATUS STDAPICALLTYPE
 
 /// Get PawnIOLib version.
 ///
 /// @p version A pointer to a ULONG which receives the version as (major << 16) | (minor << 8) | patch
 /// @return A HRESULT.
 PAWNIOAPI pawnio_version(PULONG version);
+PAWNIONTAPI pawnio_version_nt(PULONG version);
 
 /// Open a PawnIO executor.
 ///
 /// @p handle A handle to the executor, or NULL.
 /// @return A HRESULT.
 PAWNIOAPI pawnio_open(PHANDLE handle);
+PAWNIONTAPI pawnio_open_nt(PHANDLE handle);
 
 /// Load a PawnIO blob.
 ///
@@ -45,6 +48,7 @@ PAWNIOAPI pawnio_open(PHANDLE handle);
 /// @p size Size of blob.
 /// @return A HRESULT.
 PAWNIOAPI pawnio_load(HANDLE handle, const UCHAR* blob, SIZE_T size);
+PAWNIONTAPI pawnio_load_nt(HANDLE handle, const UCHAR* blob, SIZE_T size);
 
 /// Executes a function from the loaded blob.
 ///
@@ -64,6 +68,15 @@ PAWNIOAPI pawnio_execute(
   PULONG64 out,
   SIZE_T out_size,
   PSIZE_T return_size
+  );
+PAWNIONTAPI pawnio_execute_nt(
+  HANDLE handle,
+  PCSTR name,
+  const ULONG64* in,
+  SIZE_T in_size,
+  PULONG64 out,
+  SIZE_T out_size,
+  PSIZE_T return_size
 );
 
 /// Close a PawnIO executor.
@@ -71,5 +84,6 @@ PAWNIOAPI pawnio_execute(
 /// @p handle Handle from @c pawnio_open.
 /// @return A HRESULT.
 PAWNIOAPI pawnio_close(HANDLE handle);
+PAWNIONTAPI pawnio_close_nt(HANDLE handle);
 
 #endif //PAWNIOLIB_LIBRARY_H
