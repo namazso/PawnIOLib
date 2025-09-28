@@ -24,7 +24,7 @@
 #define PAWNIO_EXPORT __declspec(dllimport)
 #endif
 
-#define PAWNIOAPI EXTERN_C PAWNIO_EXPORT HRESULT STDAPICALLTYPE
+#define PAWNIOAPI   EXTERN_C PAWNIO_EXPORT HRESULT STDAPICALLTYPE
 #define PAWNIONTAPI EXTERN_C PAWNIO_EXPORT NTSTATUS STDAPICALLTYPE
 
 /// Get PawnIOLib version.
@@ -68,7 +68,7 @@ PAWNIOAPI pawnio_execute(
   PULONG64 out,
   SIZE_T out_size,
   PSIZE_T return_size
-  );
+);
 PAWNIONTAPI pawnio_execute_nt(
   HANDLE handle,
   PCSTR name,
@@ -77,6 +77,58 @@ PAWNIONTAPI pawnio_execute_nt(
   PULONG64 out,
   SIZE_T out_size,
   PSIZE_T return_size
+);
+
+/// Asynchronously executes a function from the loaded blob.
+///
+/// Please see MSDN documentation for @c DeviceIoControl for details on how to use this function. The difference is that
+/// the @c overlapped parameter is mandatory and cannot be NULL, and errors are returned as HRESULTs instead of
+/// GetLastError.
+///
+/// @p handle Handle from @c pawnio_open.
+/// @p name Function name to execute.
+/// @p in Input buffer.
+/// @p in_size Input buffer count.
+/// @p out Output buffer.
+/// @p out_size Output buffer count.
+/// @p overlapped Overlapped structure.
+/// @return A HRESULT.
+PAWNIOAPI pawnio_execute_async(
+  HANDLE handle,
+  PCSTR name,
+  const ULONG64* in,
+  SIZE_T in_size,
+  PULONG64 out,
+  SIZE_T out_size,
+  LPOVERLAPPED overlapped
+);
+
+/// NT version of @c pawnio_execute_async.
+///
+/// Please see MSDN documentation for @c NtDeviceIoControlFile for details on how to use this function.
+///
+/// @p handle Handle from @c pawnio_open.
+/// @p name Function name to execute.
+/// @p event Event to signal when the operation is complete, can be NULL.
+/// @p apc APC routine to call when the operation is complete, can be NULL.
+/// @p apc_context Context value to pass to the APC routine.
+/// @p io_status_block IO status block to receive the result of the operation.
+/// @p in Input buffer.
+/// @p in_size Input buffer count.
+/// @p out Output buffer.
+/// @p out_size Output buffer count.
+/// @return A NTSTATUS.
+PAWNIONTAPI pawnio_execute_async_nt(
+  HANDLE handle,
+  PCSTR name,
+  HANDLE event,
+  /* PIO_APC_ROUTINE */ PVOID apc,
+  PVOID apc_context,
+  /* PIO_STATUS_BLOCK */ PVOID io_status_block,
+  const ULONG64* in,
+  SIZE_T in_size,
+  PULONG64 out,
+  SIZE_T out_size
 );
 
 /// Close a PawnIO executor.

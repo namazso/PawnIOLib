@@ -147,7 +147,7 @@ PAWNIONTAPI pawnio_load_nt(HANDLE handle, const UCHAR* blob, SIZE_T size) {
     handle,
     IOCTL_PIO_LOAD_BINARY,
     (PVOID)blob,
-    size,
+    (ULONG)size,
     nullptr,
     0,
     nullptr
@@ -197,15 +197,103 @@ PAWNIONTAPI pawnio_execute_nt(
   if (in_size)
     RtlMoveMemory(p + 32, in, in_size * sizeof(*in));
 
+  SIZE_T written = 0;
   const auto status = synchronous_ioctl(
     handle,
     IOCTL_PIO_EXECUTE_FN,
     p,
-    allocsize,
+    (ULONG)allocsize,
     out,
-    out_size * sizeof(*out),
-    return_size
+    (ULONG)out_size * sizeof(*out),
+    &written
   );
+  if (NT_SUCCESS(status)) {
+    *return_size = written / sizeof(*out);
+  }
+  if (heapalloc)
+    HeapFree(heap, 0, p);
+  return status;
+}
+
+PAWNIOAPI pawnio_execute_async(
+  HANDLE handle,
+  PCSTR name,
+  const ULONG64* in,
+  SIZE_T in_size,
+  PULONG64 out,
+  SIZE_T out_size,
+  LPOVERLAPPED overlapped
+) {
+  // Partial recreation of Windows' own DeviceIoControl function
+
+  overlapped->Internal = (ULONG)STATUS_PENDING;
+
+  const auto status = pawnio_execute_async_nt(
+    handle,
+    name,
+    overlapped->hEvent,
+    nullptr,
+    (ULONG_PTR)overlapped->hEvent & 1 ? nullptr : overlapped,
+    &overlapped->Internal,
+    in,
+    in_size,
+    out,
+    out_size
+  );
+
+  if (NT_SUCCESS(status) && status != STATUS_PENDING) {
+    return S_OK;
+  }
+
+  return HRESULT_FROM_WIN32(RtlNtStatusToDosError(status));
+}
+
+PAWNIONTAPI pawnio_execute_async_nt(
+  HANDLE handle,
+  PCSTR name,
+  HANDLE event,
+  PVOID apc,
+  PVOID apc_context,
+  PVOID io_status_block,
+  const ULONG64* in,
+  SIZE_T in_size,
+  PULONG64 out,
+  SIZE_T out_size
+) {
+  const auto apc_routine = (PIO_APC_ROUTINE)apc;
+  const auto iosb = (PIO_STATUS_BLOCK)io_status_block;
+
+  char* p = nullptr;
+  HANDLE heap = nullptr;
+  void* heapalloc = nullptr;
+  const auto allocsize = in_size * sizeof(*in) + FN_NAME_LENGTH;
+  if (allocsize > 512) {
+    heap = GetProcessHeap();
+    heapalloc = HeapAlloc(heap, 0, allocsize);
+    p = (char*)heapalloc;
+    if (!p)
+      return STATUS_NO_MEMORY;
+  } else {
+    p = (char*)_alloca(allocsize);
+  }
+  lstrcpynA(p, name, 31);
+  p[31] = 0;
+  if (in_size)
+    RtlMoveMemory(p + 32, in, in_size * sizeof(*in));
+
+  const auto status = NtDeviceIoControlFile(
+    handle,
+    event,
+    apc_routine,
+    apc_context,
+    iosb,
+    IOCTL_PIO_EXECUTE_FN,
+    p,
+    (ULONG)allocsize,
+    out,
+    (ULONG)(out_size * sizeof(*out))
+  );
+  // All PawnIO ioctls are buffered, so we're free to free this regardless of the status.
   if (heapalloc)
     HeapFree(heap, 0, p);
   return status;
