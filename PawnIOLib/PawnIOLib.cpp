@@ -34,6 +34,77 @@ EXTERN_C NTSYSAPI VOID NTAPI RtlMoveMemory(
   SIZE_T Length
 );
 
+typedef enum _EVENT_TYPE
+{
+  NotificationEvent,
+  SynchronizationEvent
+} EVENT_TYPE;
+
+EXTERN_C NTSYSCALLAPI NTSTATUS NTAPI NtCreateEvent(
+    _Out_ PHANDLE EventHandle,
+    _In_ ACCESS_MASK DesiredAccess,
+    _In_opt_ POBJECT_ATTRIBUTES ObjectAttributes,
+    _In_ EVENT_TYPE EventType,
+    _In_ BOOLEAN InitialState
+    );
+
+static NTSTATUS synchronous_ioctl(
+  _In_ HANDLE FileHandle,
+  _In_ ULONG IoControlCode,
+  _In_opt_ PVOID InputBuffer,
+  _In_ ULONG InputBufferLength,
+  _Out_opt_ PVOID OutputBuffer,
+  _In_ ULONG OutputBufferLength,
+  _Out_opt_ PSIZE_T OutputWritten
+) {
+  HANDLE event = nullptr;
+
+  // Create an event for synchronization
+  NTSTATUS status = NtCreateEvent(
+    &event,
+    EVENT_ALL_ACCESS,
+    nullptr,
+    NotificationEvent,
+    FALSE
+  );
+
+  if (!NT_SUCCESS(status))
+    return status;
+
+  IO_STATUS_BLOCK iosb{};
+
+  // Call the IoControl function with our event
+  status = NtDeviceIoControlFile(
+    FileHandle,
+    event,
+    nullptr,
+    nullptr,
+    &iosb,
+    IoControlCode,
+    InputBuffer,
+    InputBufferLength,
+    OutputBuffer,
+    OutputBufferLength
+  );
+
+  // If the operation is pending, wait for completion
+  if (status == STATUS_PENDING) {
+    status = NtWaitForSingleObject(event, FALSE, nullptr);
+    if (NT_SUCCESS(status)) {
+      // Get the actual result from the IO status block
+      status = iosb.Status;
+    }
+  }
+
+  if (OutputWritten && NT_SUCCESS(status)) {
+    *OutputWritten = iosb.Information;
+  }
+
+  // Clean up
+  NtClose(event);
+  return status;
+}
+
 PAWNIOAPI pawnio_version(PULONG version) {
   *version = 0x00020000; // 2.0.0
   return S_OK;
@@ -71,18 +142,14 @@ PAWNIOAPI pawnio_load(HANDLE handle, const UCHAR* blob, SIZE_T size) {
 }
 
 PAWNIONTAPI pawnio_load_nt(HANDLE handle, const UCHAR* blob, SIZE_T size) {
-  IO_STATUS_BLOCK iosb{};
-  return NtDeviceIoControlFile(
+  return synchronous_ioctl(
     handle,
-    nullptr,
-    nullptr,
-    nullptr,
-    &iosb,
     IOCTL_PIO_LOAD_BINARY,
     (PVOID)blob,
     size,
     nullptr,
-    0
+    0,
+    nullptr
   );
 }
 
@@ -118,22 +185,15 @@ PAWNIONTAPI pawnio_execute_nt(
   if (in_size)
     RtlMoveMemory(p + 32, in, in_size * sizeof(*in));
 
-  IO_STATUS_BLOCK iosb{};
-  const auto status = NtDeviceIoControlFile(
+  const auto status = synchronous_ioctl(
     handle,
-    nullptr,
-    nullptr,
-    nullptr,
-    &iosb,
     IOCTL_PIO_EXECUTE_FN,
     p,
     allocsize,
     out,
-    out_size * sizeof(*out)
+    out_size * sizeof(*out),
+    return_size
   );
-  if (NT_SUCCESS(status)) {
-    *return_size = iosb.Information / sizeof(*out);
-  }
   HeapFree(heap, 0, p);
   return status;
 }
