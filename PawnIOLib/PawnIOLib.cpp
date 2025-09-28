@@ -23,6 +23,8 @@
 
 #include <winternl.h>
 
+#include <malloc.h>
+
 #include "public/PawnIOLib.h"
 
 #include "ioctl.h"
@@ -34,19 +36,18 @@ EXTERN_C NTSYSAPI VOID NTAPI RtlMoveMemory(
   SIZE_T Length
 );
 
-typedef enum _EVENT_TYPE
-{
+typedef enum _EVENT_TYPE {
   NotificationEvent,
   SynchronizationEvent
 } EVENT_TYPE;
 
 EXTERN_C NTSYSCALLAPI NTSTATUS NTAPI NtCreateEvent(
-    _Out_ PHANDLE EventHandle,
-    _In_ ACCESS_MASK DesiredAccess,
-    _In_opt_ POBJECT_ATTRIBUTES ObjectAttributes,
-    _In_ EVENT_TYPE EventType,
-    _In_ BOOLEAN InitialState
-    );
+  _Out_ PHANDLE EventHandle,
+  _In_ ACCESS_MASK DesiredAccess,
+  _In_opt_ POBJECT_ATTRIBUTES ObjectAttributes,
+  _In_ EVENT_TYPE EventType,
+  _In_ BOOLEAN InitialState
+);
 
 static NTSTATUS synchronous_ioctl(
   _In_ HANDLE FileHandle,
@@ -166,6 +167,8 @@ PAWNIOAPI pawnio_execute(
   return HRESULT_FROM_WIN32(RtlNtStatusToDosError(status));
 }
 
+static constexpr auto FN_NAME_LENGTH = 32u;
+
 PAWNIONTAPI pawnio_execute_nt(
   HANDLE handle,
   PCSTR name,
@@ -176,10 +179,19 @@ PAWNIONTAPI pawnio_execute_nt(
   PSIZE_T return_size
 ) {
   *return_size = 0;
-  static constexpr auto FN_NAME_LENGTH = 32u;
+  char* p = nullptr;
+  HANDLE heap = nullptr;
+  void* heapalloc = nullptr;
   const auto allocsize = in_size * sizeof(*in) + FN_NAME_LENGTH;
-  const auto heap = GetProcessHeap();
-  const auto p = (char*)HeapAlloc(heap, 0, allocsize);
+  if (allocsize > 512) {
+    heap = GetProcessHeap();
+    heapalloc = HeapAlloc(heap, 0, allocsize);
+    p = (char*)heapalloc;
+    if (!p)
+      return STATUS_NO_MEMORY;
+  } else {
+    p = (char*)_alloca(allocsize);
+  }
   lstrcpynA(p, name, 31);
   p[31] = 0;
   if (in_size)
@@ -194,7 +206,8 @@ PAWNIONTAPI pawnio_execute_nt(
     out_size * sizeof(*out),
     return_size
   );
-  HeapFree(heap, 0, p);
+  if (heapalloc)
+    HeapFree(heap, 0, p);
   return status;
 }
 
